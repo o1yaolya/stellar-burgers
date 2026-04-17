@@ -15,12 +15,12 @@ const initialState: TUserOrderState = {
 };
 
 export const fetchUserOrders = createAsyncThunk(
-  'profileOrders/fetch',
+  'userOrders/fetch',
   async () => await getOrdersApi()
 );
 
 export const userOrderSlice = createSlice({
-  name: 'profileOrders',
+  name: 'userOrders',
   initialState,
   reducers: {},
   extraReducers: (builder) => {

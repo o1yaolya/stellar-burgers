@@ -25,6 +25,8 @@ import { TIngredient } from '@utils-types';
 import { useEffect } from 'react';
 import { fetchIngredients } from '../../services/slices/ingredientsSlices';
 
+import { autoLogin } from '../../services/slices/userSlice';
+
 const App = () => {
   const dispatch = useDispatch();
   const navigate = useNavigate();
@@ -33,7 +35,8 @@ const App = () => {
 
   useEffect(() => {
     dispatch(fetchIngredients());
-  }, []);
+    dispatch(autoLogin());
+  }, [dispatch]);
 
   const handleModalClose = () => {
     navigate(-1);

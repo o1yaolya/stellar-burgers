@@ -7,46 +7,79 @@ import { useSelector } from '../../services/store';
 import { useParams } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { getOrderByNumber } from '../../services/slices/orderSlice';
+import { TOrder } from '@utils-types';
+
+interface OrderInfoState {
+  order: TOrder | null;
+  isLoading: boolean;
+  error: string | null;
+}
 
 export const OrderInfo: FC = () => {
   const { number } = useParams();
   const dispatch = useDispatch();
+
   const { ingredients } = useSelector((state) => state.ingredients);
   const { orders: feedOrders } = useSelector((state) => state.feed);
-  const { orders: UserOrders } = useSelector((state) => state.userOrders);
-  const [orderData, setOrderData] = useState<any>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const { orders: userOrders } = useSelector((state) => state.userOrders);
+
+  const [state, setState] = useState<OrderInfoState>({
+    order: null,
+    isLoading: true,
+    error: null
+  });
 
   useEffect(() => {
-    const allOrders = [...feedOrders, ...UserOrders];
-    const foundOrder = allOrders.find(
-      (order) => order.number === Number(number)
-    );
+    if (!number) {
+      setState({
+        order: null,
+        isLoading: false,
+        error: 'Номер заказа не указан'
+      });
+      return;
+    }
+
+    const orderNumber = Number(number);
+    if (isNaN(orderNumber)) {
+      setState({
+        order: null,
+        isLoading: false,
+        error: 'Некорректный номер заказа'
+      });
+      return;
+    }
+
+    // Сначала ищем в локальных данных
+    const allOrders = [...feedOrders, ...userOrders];
+    const foundOrder = allOrders.find((order) => order.number === orderNumber);
 
     if (foundOrder) {
-      setOrderData(foundOrder);
-      setIsLoading(false);
+      setState({ order: foundOrder, isLoading: false, error: null });
     } else {
-      dispatch(getOrderByNumber(Number(number)))
+      // Если не нашли — запрашиваем с сервера
+      dispatch(getOrderByNumber(orderNumber))
         .unwrap()
         .then((order) => {
-          setOrderData(order);
-          setIsLoading(false);
+          setState({ order, isLoading: false, error: null });
         })
         .catch((err) => {
           console.error('Failed to fetch order:', err);
-          setIsLoading(false);
+          setState({
+            order: null,
+            isLoading: false,
+            error: 'Не удалось загрузить заказ'
+          });
         });
     }
-  }, [dispatch, number, feedOrders, UserOrders]);
+  }, [dispatch, number, feedOrders, userOrders]);
 
   const orderInfo = useMemo(() => {
-    if (!orderData || !ingredients.length) return null;
+    if (!state.order || !ingredients.length) return null;
 
-    const date = new Date(orderData.createdAt);
+    const date = new Date(state.order.createdAt);
 
-    const ingredientsInfo = orderData.ingredients.reduce(
-      (acc: any, item: string) => {
+    const ingredientsInfo = state.order.ingredients.reduce(
+      (acc: Record<string, TIngredient & { count: number }>, item: string) => {
         if (!acc[item]) {
           const ingredient = ingredients.find((ing) => ing._id === item);
           if (ingredient) {
@@ -64,20 +97,37 @@ export const OrderInfo: FC = () => {
     );
 
     const total = Object.values(ingredientsInfo).reduce(
-      (acc: number, item: any) => acc + item.price * item.count,
+      (acc: number, item: TIngredient & { count: number }) =>
+        acc + item.price * item.count,
       0
     );
 
     return {
-      ...orderData,
-      ingredientsInfo,
+      ...state.order,
+      ingredientsInfo: ingredientsInfo,
       date,
       total
     };
-  }, [orderData, ingredients]);
+  }, [state.order, ingredients]);
+
+  if (state.isLoading) {
+    return <Preloader />;
+  }
+
+  if (state.error) {
+    return (
+      <div>
+        <p>{state.error}</p>
+      </div>
+    );
+  }
 
   if (!orderInfo) {
-    return <Preloader />;
+    return (
+      <div>
+        <p>Заказ не найден</p>
+      </div>
+    );
   }
 
   return <OrderInfoUI orderInfo={orderInfo} />;

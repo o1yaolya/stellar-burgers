@@ -1,49 +1,31 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { getFeedsApi } from '../../utils/burger-api';
-import { TOrder } from '@utils-types';
+import { getFeedsApi } from '@api';
+import { TOrder, TOrdersData } from '@utils-types';
+import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-// Начальное состояние слайса
-interface FeedState {
-  orders: TOrder[];
-  total: number;
-  totalToday: number;
-  isLoading: boolean;
-  error: string | null;
-}
-
-export const fetchFeed = createAsyncThunk('feed/fetch', async () => {
-  const response = await getFeedsApi();
-  return response;
-});
-
-const initialState: FeedState = {
+const initialState: TOrdersData = {
   orders: [],
   total: 0,
-  totalToday: 0,
-  isLoading: false,
-  error: null
+  totalToday: 0
 };
 
-// Создание слайса
+export const fetchFeed = createAsyncThunk(
+  'feed/getFeeds',
+  async () => await getFeedsApi()
+);
+
 const feedSlice = createSlice({
   name: 'feed',
   initialState,
   reducers: {},
   extraReducers: (builder) => {
-    // Обработка состояний асинхронного запроса
     builder
       .addCase(fetchFeed.pending, (state) => {
-        state.isLoading = true;
-        state.error = null;
+        state.orders = [];
       })
       .addCase(fetchFeed.fulfilled, (state, action) => {
-        state.isLoading = false;
         state.orders = action.payload.orders;
         state.total = action.payload.total;
         state.totalToday = action.payload.totalToday;
-      })
-      .addCase(fetchFeed.rejected, (state) => {
-        state.isLoading = false;
       });
   }
 });
