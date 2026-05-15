@@ -2,7 +2,7 @@ import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { orderBurgerApi, getOrderByNumberApi } from '../../utils/burger-api';
 import { TOrder } from '../../utils/types';
 
-type TOrderState = {
+export type TOrderState = {
   orderRequest: boolean;
   orderModalData: TOrder | null;
 };
