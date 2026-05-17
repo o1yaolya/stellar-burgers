@@ -2,7 +2,7 @@ import { getFeedsApi } from '@api';
 import { TOrder, TOrdersData } from '@utils-types';
 import { createAsyncThunk, createSlice, PayloadAction } from '@reduxjs/toolkit';
 
-const initialState: TOrdersData = {
+export const initialState: TOrdersData = {
   orders: [],
   total: 0,
   totalToday: 0
