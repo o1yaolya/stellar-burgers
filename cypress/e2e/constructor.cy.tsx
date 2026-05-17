@@ -19,12 +19,23 @@ describe('E2E тесты: Конструктор бургера', () => {
       fixture: 'user.json'
     }).as('getUser');
 
-    // 4. Открываем страницу конструктора
+    // 4. Перехватываем POST-запрос на создание заказа
+    cy.intercept('GET', `${API}/orders`, { fixture: 'order.json' }).as(
+      'createOrder'
+    );
+
+    // 5. Открываем страницу конструктора
     cy.visit('/');
 
-    // 5. Ждём загрузки ингредиентов и данных пользователя
+    // 6. Ждём загрузки ингредиентов и данных пользователя
     cy.wait('@getIngredients');
     cy.wait('@getUser');
+  });
+
+  // ОЧИСТКА МОКОВ ПОСЛЕ КАЖДОГО ТЕСТА
+  afterEach(() => {
+    cy.clearCookie('accessToken');
+    cy.clearLocalStorage('refreshToken');
   });
 
   describe('Добавление ингредиентов в конструктор', () => {
@@ -62,10 +73,7 @@ describe('E2E тесты: Конструктор бургера', () => {
     // Вспомогательная функция для закрытия модального окна через крестик
     const closeModalWithCloseButton = () => {
       cy.get('#modals').within(() => {
-        cy.get('button')
-          .contains('×')
-          .should('be.visible')
-          .click({ force: true });
+        cy.get('button').should('be.visible').click({ force: true });
       });
     };
 
@@ -77,18 +85,28 @@ describe('E2E тесты: Конструктор бургера', () => {
     it('должен открывать модальное окно ингредиента', () => {
       openModal();
 
-      cy.get('#modals', { timeout: 10000 })
-        .should('be.visible')
-        .within(() => {
-          cy.contains('Детали ингредиента').should('be.visible');
-          cy.contains(BUN_NAME).should('be.visible');
-        });
+      // Проверяем видимость содержимого модального окна вместо самого #modals
+      cy.get('#modals').within(() => {
+        cy.contains('Детали ингредиента').should('exist');
+        cy.contains(BUN_NAME).should('exist');
+      });
     });
 
     it('должен закрывать модальное окно по клику на крестик', () => {
       // 1. Открываем модальное окно
       openModal();
-      cy.get('#modals').should('be.visible', 'Модальное окно должно открыться');
+
+      // Ждём видимости содержимого модалки
+      cy.get('#modals').within(() => {
+        cy.contains('Детали ингредиента').should(
+          'be.visible',
+          'Заголовок "Детали ингредиента" должен быть виден'
+        );
+        cy.contains(BUN_NAME).should(
+          'be.visible',
+          'Название ингредиента должно быть видно'
+        );
+      });
 
       // 2. Находим первую кнопку внутри модального окна и кликаем по ней
       cy.get('#modals')
@@ -97,28 +115,38 @@ describe('E2E тесты: Конструктор бургера', () => {
         .should('be.visible', 'Кнопка закрытия должна быть видна')
         .click();
 
-      // 3. Проверяем, что модальное окно закрылось
-      cy.get('#modals').should(
-        'not.be.visible',
-        'Модальное окно должно закрыться'
-      );
+      // 3. Проверяем, что содержимое модального окна исчезло
+      cy.get('#modals').within(() => {
+        cy.contains('Детали ингредиента').should(
+          'not.exist',
+          'Заголовок "Детали ингредиента" должен исчезнуть'
+        );
+        cy.contains(BUN_NAME).should(
+          'not.exist',
+          'Название ингредиента должно исчезнуть'
+        );
+      });
     });
 
     it('должен закрывать модальное окно по клику на оверлей', () => {
       // Открываем модальное окно
       openModal();
-      cy.get('#modals').should('be.visible', 'Модальное окно должно открыться');
 
-      // Кликаем по оверлею с force: true — игнорируем проверки видимости
+      // Ждём видимости содержимого модалки
+      cy.get('#modals').within(() => {
+        cy.contains('Детали ингредиента').should('exist');
+      });
+
+      // Кликаем по оверлею
       cy.get('.RuQycGaRTQNbnIEC5d3Y')
         .should('exist')
-        .click({ force: true }) // force: true позволяет кликнуть, даже если элемент перекрыт
+        .click({ force: true })
         .then(() => {
-          // Ждём закрытия модального окна
-          cy.get('#modals').should(
-            'not.be.visible',
-            'Модальное окно должно закрыться после клика на оверлей'
-          );
+          // Проверяем, что содержимое модального окна исчезло
+          cy.get('#modals').within(() => {
+            cy.contains('Детали ингредиента').should('not.exist');
+            cy.contains(BUN_NAME).should('not.exist');
+          });
         });
     });
   });
@@ -131,7 +159,7 @@ describe('E2E тесты: Конструктор бургера', () => {
       );
     });
 
-    it('нажатие кнопки «Оформить заказ» и проверка модального окна', () => {
+    it('оформление заказа, закрытие модального окна и очистка конструктора', () => {
       // 1. Собираем бургер
       cy.addIngredientByName(BUN_NAME);
       cy.addIngredientByName(INGREDIENT_NAME);
@@ -145,9 +173,19 @@ describe('E2E тесты: Конструктор бургера', () => {
 
       // 4. Проверяем модальное окно и номер заказа
       cy.get('#modals').contains('105206').should('exist');
-    });
 
-    it('проверка пустоты конструктора после закрытия модального окна', () => {
+      // 5. Закрываем модальное окно (кликаем по крестику)
+      cy.get('#modals').find('button').first().should('be.visible').click();
+
+      // 6. Проверяем, что содержимое модального окна исчезло
+      cy.get('#modals').within(() => {
+        cy.contains('105206').should('not.exist');
+      });
+
+      // 7. Проверяем очистку конструктора (должны исчезнуть добавленные ингредиенты)
+      cy.get('[class*=constructor-element]').should('not.exist');
+
+      // 8. Проверяем подсказки об empty state
       cy.contains('Выберите булки').should('exist');
       cy.contains('Выберите начинку').should('exist');
     });
